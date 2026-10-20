@@ -14,7 +14,8 @@ export class PromptModelNode extends ExecuteNode {
         { name: 'provider', label: 'Provider', type: 'select', options: [{label: 'Ollama', value: 'Ollama'}, {label: 'Gemini', value: 'Gemini'}], defaultValue: '' },
         { name: 'model', label: 'Model', type: 'string', defaultValue: '' },
         { name: 'system_prompt', label: 'System Prompt', type: 'text', defaultValue: '' },
-        { name: 'temperature', label: 'Temperature', type: 'number', defaultValue: 0.7 }
+        { name: 'temperature', label: 'Temperature', type: 'number', defaultValue: 0.7 },
+        { name: 'timeout', label: 'Timeout (seconds, 0 = infinite)', type: 'number', defaultValue: 0 }
     ];
 
     readonly inputs: InputDefinition[] = [
@@ -41,7 +42,19 @@ export class PromptModelNode extends ExecuteNode {
         }
     }
 
+    private withTimeout<T>(promise: Promise<T>, seconds: number): Promise<T> {
+        if (!(seconds > 0)) return promise;
+        return new Promise<T>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error(`Request timed out after ${seconds} seconds`)), seconds * 1000);
+            promise.then(
+                value => { clearTimeout(timer); resolve(value); },
+                err => { clearTimeout(timer); reject(err); }
+            );
+        });
+    }
+
     async evaluate(inputs: Record<string, any>, properties: Record<string, any>): Promise<Record<string, any>> {
+        const timeoutSeconds = Number(properties.timeout) || 0;
         const provider = await this.getProvider(properties);
         const model = await this.getModel(provider, properties);
         const content = inputs.Content || '';
@@ -50,7 +63,7 @@ export class PromptModelNode extends ExecuteNode {
             if (provider === 'Ollama') {
                 const baseUrl = await traceReactive.settings.get('ollamaUrl') || 'http://localhost:11434';
                 
-                const response = await traceReactive.net.fetch(`${baseUrl}/api/generate`, {
+                const response = await this.withTimeout(traceReactive.net.fetch(`${baseUrl}/api/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -62,7 +75,7 @@ export class PromptModelNode extends ExecuteNode {
                             temperature: properties.temperature || 0.7
                         }
                     })
-                });
+                }), timeoutSeconds);
                 
                 const data = JSON.parse(response.text);
                 if (data.error) throw new Error(data.error);
@@ -90,11 +103,11 @@ export class PromptModelNode extends ExecuteNode {
                     };
                 }
                 
-                const response = await traceReactive.net.fetch(url, {
+                const response = await this.withTimeout(traceReactive.net.fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
-                });
+                }), timeoutSeconds);
                 
                 const data = JSON.parse(response.text);
                 if (data.error) throw new Error(data.error.message || "Unknown Gemini error");
