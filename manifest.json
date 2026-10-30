@@ -1,5 +1,5 @@
 {
-  "id": "tracereactive.llm",
+  "id": "com.gravitydock.llm",
   "name": "LLM Integration",
   "version": "1.0.0",
   "description": "Integration with Ollama and Gemini for language modeling and embeddings.",

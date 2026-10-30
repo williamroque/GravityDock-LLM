@@ -1,8 +1,8 @@
-import { ExecuteNode } from '@tracereactive/types/src/node';
-import type { InputDefinition, OutputDefinition, PropertyDefinition, NodeCategory } from '@tracereactive/types/src/property';
-import type { TraceReactiveAPI } from '@tracereactive/types';
+import { ExecuteNode } from '@gravitydock/types/src/node';
+import type { InputDefinition, OutputDefinition, PropertyDefinition, NodeCategory } from '@gravitydock/types/src/property';
+import type { GravityDockAPI } from '@gravitydock/types';
 
-declare const traceReactive: TraceReactiveAPI;
+declare const gravityDock: GravityDockAPI;
 
 export class PromptModelNode extends ExecuteNode {
     readonly typeId = 'llm.prompt';
@@ -29,16 +29,16 @@ export class PromptModelNode extends ExecuteNode {
     ];
 
     private async getProvider(properties: Record<string, any>): Promise<string> {
-        const defaultProvider = await traceReactive.settings.get('defaultProvider') || 'Ollama';
+        const defaultProvider = await gravityDock.settings.get('defaultProvider') || 'Ollama';
         return properties.provider || defaultProvider;
     }
 
     private async getModel(provider: string, properties: Record<string, any>): Promise<string> {
         if (properties.model) return properties.model;
         if (provider === 'Ollama') {
-            return await traceReactive.settings.get('defaultOllamaModel') || 'llama3';
+            return await gravityDock.settings.get('defaultOllamaModel') || 'llama3';
         } else {
-            return await traceReactive.settings.get('defaultGeminiModel') || 'gemini-1.5-flash';
+            return await gravityDock.settings.get('defaultGeminiModel') || 'gemini-1.5-flash';
         }
     }
 
@@ -61,9 +61,9 @@ export class PromptModelNode extends ExecuteNode {
         
         try {
             if (provider === 'Ollama') {
-                const baseUrl = await traceReactive.settings.get('ollamaUrl') || 'http://localhost:11434';
+                const baseUrl = await gravityDock.settings.get('ollamaUrl') || 'http://localhost:11434';
                 
-                const response = await this.withTimeout(traceReactive.net.fetch(`${baseUrl}/api/generate`, {
+                const response = await this.withTimeout(gravityDock.net.fetch(`${baseUrl}/api/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -83,7 +83,7 @@ export class PromptModelNode extends ExecuteNode {
                 return { Success: true, Result: data.response, Error: '', Event: true };
                 
             } else if (provider === 'Gemini') {
-                const apiKey = await traceReactive.settings.get('geminiKey');
+                const apiKey = await gravityDock.settings.get('geminiKey');
                 if (!apiKey) throw new Error("Gemini API Key is missing in package settings.");
                 
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -103,7 +103,7 @@ export class PromptModelNode extends ExecuteNode {
                     };
                 }
                 
-                const response = await this.withTimeout(traceReactive.net.fetch(url, {
+                const response = await this.withTimeout(gravityDock.net.fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
